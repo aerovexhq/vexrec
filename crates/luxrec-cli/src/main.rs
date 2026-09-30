@@ -82,6 +82,8 @@ enum Commands {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Launch the interactive minimalist floating GUI
+    Gui,
     /// Print system and multimedia capabilities diagnostics
     Doctor,
 }
@@ -274,6 +276,11 @@ async fn main() -> anyhow::Result<()> {
             }
             SnapshotEngine::save_image(&annotated, &output)?;
             println!("Annotated demo image successfully created at: {}", output.display());
+        }
+
+        Commands::Gui => {
+            println!("Launching Luxrec Minimalist Desktop Interface...");
+            luxrec_ui::run_app();
         }
     }
 

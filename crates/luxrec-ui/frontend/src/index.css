@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ease-tactile: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+@layer components {
+  /* Frosted Glass HUD container */
+  .glass-pill {
+    background: rgba(20, 22, 27, 0.88);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-panel {
+    background: rgba(23, 25, 31, 0.94);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Tactile Interactive Buttons */
+  .tactile-btn {
+    transition: all 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tactile-btn:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+  }
+
+  .tactile-btn:active {
+    transform: scale(0.97);
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Keyboard shortcut hint */
+  .kbd-hint {
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.6);
+  }
+}

@@ -3,3 +3,5 @@
 *.log
 Cargo.lock
 .env
+**/node_modules/
+**/dist/
