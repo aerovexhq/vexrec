@@ -1,0 +1,24 @@
+[Desktop Entry]
+Name=Luxrec
+GenericName=Screenshot & Screen Recorder
+Comment=Modern, minimalistic screenshot and screen recorder for Linux written in Rust
+Exec=luxrec gui
+Icon=luxrec
+Terminal=false
+Type=Application
+Categories=AudioVideo;Recorder;Utility;
+Keywords=screenshot;screen;record;screencast;capture;luxrec;
+StartupNotify=true
+Actions=AreaScreenshot;FullscreenScreenshot;RecordScreen;
+
+[Desktop Action AreaScreenshot]
+Name=Capture Area
+Exec=luxrec screenshot -c
+
+[Desktop Action FullscreenScreenshot]
+Name=Capture Full Screen
+Exec=luxrec screenshot --x11 -c
+
+[Desktop Action RecordScreen]
+Name=Record Screen
+Exec=luxrec record
