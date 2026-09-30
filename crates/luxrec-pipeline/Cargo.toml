@@ -1,0 +1,18 @@
+[package]
+name = "luxrec-pipeline"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+luxrec-core = { path = "../luxrec-core" }
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+gstreamer = { version = "0.25", features = ["v1_24"] }
+gstreamer-app = { version = "0.25", features = ["v1_24"] }
+gstreamer-video = { version = "0.25", features = ["v1_24"] }
+gstreamer-audio = { version = "0.25", features = ["v1_24"] }
+image.workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "luxrec-ui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+luxrec-core = { path = "../luxrec-core" }
+luxrec-pipeline = { path = "../luxrec-pipeline" }
+luxrec-portal = { path = "../luxrec-portal" }
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+image.workspace = true
