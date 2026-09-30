@@ -10,6 +10,7 @@ repository.workspace = true
 luxrec-core = { path = "../luxrec-core" }
 luxrec-portal = { path = "../luxrec-portal" }
 luxrec-pipeline = { path = "../luxrec-pipeline" }
+luxrec-ui = { path = "../luxrec-ui" }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

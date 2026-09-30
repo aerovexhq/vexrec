@@ -29,3 +29,6 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 dirs = "5.0"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.8", features = ["v4", "serde"] }
+arboard = "3.6"
+imageproc = "0.27"
+x11rb = { version = "0.14", features = ["shm"] }

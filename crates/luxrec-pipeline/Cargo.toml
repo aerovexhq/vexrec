@@ -16,3 +16,5 @@ gstreamer-app = { version = "0.25", features = ["v1_24"] }
 gstreamer-video = { version = "0.25", features = ["v1_24"] }
 gstreamer-audio = { version = "0.25", features = ["v1_24"] }
 image.workspace = true
+x11rb.workspace = true
+arboard.workspace = true

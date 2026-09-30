@@ -1,10 +1,13 @@
+use std::borrow::Cow;
 use std::os::fd::RawFd;
 use std::path::Path;
+use arboard::{Clipboard, ImageData};
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
-use image::{ImageBuffer, Rgba};
+use image::{imageops, ImageBuffer, Rgba};
 use luxrec_core::error::{LuxrecError, Result};
+use luxrec_core::geometry::Rect;
 use tracing::info;
 
 pub struct SnapshotEngine;
@@ -77,6 +80,47 @@ impl SnapshotEngine {
 
         info!(width, height, "Captured single frame snapshot successfully");
         Ok(img)
+    }
+
+    /// Crops an RGBA image buffer to the specified rectangle
+    pub fn crop_image(
+        img: &ImageBuffer<Rgba<u8>, Vec<u8>>,
+        rect: Rect,
+    ) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>> {
+        let (img_w, img_h) = img.dimensions();
+        let x = (rect.x.max(0) as u32).min(img_w);
+        let y = (rect.y.max(0) as u32).min(img_h);
+        let width = rect.width.min(img_w.saturating_sub(x));
+        let height = rect.height.min(img_h.saturating_sub(y));
+
+        if width == 0 || height == 0 {
+            return Err(LuxrecError::Pipeline(
+                "Crop region has zero width or height".to_string(),
+            ));
+        }
+
+        let cropped = imageops::crop_imm(img, x, y, width, height).to_image();
+        Ok(cropped)
+    }
+
+    /// Copies an RGBA image buffer to the system clipboard
+    pub fn copy_to_clipboard(img: &ImageBuffer<Rgba<u8>, Vec<u8>>) -> Result<()> {
+        let mut clipboard = Clipboard::new()
+            .map_err(|e| LuxrecError::Pipeline(format!("Failed to access clipboard: {e}")))?;
+
+        let (width, height) = img.dimensions();
+        let image_data = ImageData {
+            width: width as usize,
+            height: height as usize,
+            bytes: Cow::Borrowed(img.as_raw()),
+        };
+
+        clipboard
+            .set_image(image_data)
+            .map_err(|e| LuxrecError::Pipeline(format!("Failed to copy image to clipboard: {e}")))?;
+
+        info!(width, height, "Screenshot copied to clipboard");
+        Ok(())
     }
 
     /// Saves image buffer to specified output path
