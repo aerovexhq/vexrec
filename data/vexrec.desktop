@@ -1,0 +1,24 @@
+[Desktop Entry]
+Name=Vexrec
+GenericName=Screenshot & Screen Recorder
+Comment=Modern, minimalistic screenshot and screen recorder for Linux written in Rust
+Exec=vexrec gui
+Icon=vexrec
+Terminal=false
+Type=Application
+Categories=AudioVideo;Recorder;Utility;
+Keywords=screenshot;screen;record;screencast;capture;vexrec;
+StartupNotify=true
+Actions=AreaScreenshot;FullscreenScreenshot;RecordScreen;
+
+[Desktop Action AreaScreenshot]
+Name=Capture Area
+Exec=vexrec screenshot -c
+
+[Desktop Action FullscreenScreenshot]
+Name=Capture Full Screen
+Exec=vexrec screenshot --x11 -c
+
+[Desktop Action RecordScreen]
+Name=Record Screen
+Exec=vexrec record

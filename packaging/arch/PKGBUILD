@@ -1,23 +1,24 @@
-# Maintainer: Larvance <64753457+larvance@users.noreply.github.com>
-pkgname=luxrec-bin
+# Maintainer: Aerovex HQ <dev@aerovex.net>
+pkgname=vexrec-bin
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Modern, minimalistic screenshot and screen recorder for Linux written in Rust"
 arch=('x86_64')
-url="https://github.com/larvance/luxrec"
+url="https://github.com/aerovexhq/vexrec"
 license=('MIT')
 depends=('gstreamer' 'gst-plugins-base' 'gst-plugins-good' 'gst-plugin-pipewire' 'pipewire' 'xdg-desktop-portal')
-provides=('luxrec')
-conflicts=('luxrec')
-source=("https://github.com/larvance/luxrec/releases/download/v${pkgver}/luxrec-v${pkgver}-linux-x86_64.tar.gz")
+provides=('vexrec' 'luxrec')
+conflicts=('vexrec' 'luxrec')
+source=("https://github.com/aerovexhq/vexrec/releases/download/v${pkgver}/vexrec-v${pkgver}-linux-x86_64.tar.gz")
 sha256sums=('SKIP')
 
 package() {
     cd "${srcdir}"
-    install -Dm755 luxrec "${pkgdir}/usr/bin/luxrec"
-    install -Dm644 luxrec.desktop "${pkgdir}/usr/share/applications/luxrec.desktop"
-    install -Dm644 icons/32x32.png "${pkgdir}/usr/share/icons/hicolor/32x32/apps/luxrec.png"
-    install -Dm644 icons/128x128.png "${pkgdir}/usr/share/icons/hicolor/128x128/apps/luxrec.png"
-    install -Dm644 icons/128x128@2x.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/luxrec.png"
+    install -Dm755 vexrec "${pkgdir}/usr/bin/vexrec"
+    ln -sf vexrec "${pkgdir}/usr/bin/luxrec"
+    install -Dm644 vexrec.desktop "${pkgdir}/usr/share/applications/vexrec.desktop"
+    install -Dm644 icons/32x32.png "${pkgdir}/usr/share/icons/hicolor/32x32/apps/vexrec.png"
+    install -Dm644 icons/128x128.png "${pkgdir}/usr/share/icons/hicolor/128x128/apps/vexrec.png"
+    install -Dm644 icons/128x128@2x.png "${pkgdir}/usr/share/icons/hicolor/256x256/apps/vexrec.png"
     install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 }

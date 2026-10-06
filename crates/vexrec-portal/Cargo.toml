@@ -1,0 +1,14 @@
+[package]
+name = "vexrec-portal"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+vexrec-core = { path = "../vexrec-core" }
+tokio.workspace = true
+ashpd.workspace = true
+tracing.workspace = true
+thiserror.workspace = true

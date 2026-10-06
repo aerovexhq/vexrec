@@ -1,19 +1,19 @@
 [workspace]
 members = [
-    "crates/luxrec-core",
-    "crates/luxrec-portal",
-    "crates/luxrec-pipeline",
-    "crates/luxrec-ui",
-    "crates/luxrec-cli",
+    "crates/vexrec-core",
+    "crates/vexrec-portal",
+    "crates/vexrec-pipeline",
+    "crates/vexrec-ui",
+    "crates/vexrec-cli",
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Larvance"]
+authors = ["Aerovex Engineering <engineering@aerovex.net>"]
 license = "MIT"
-repository = "https://github.com/larvance/luxrec"
+repository = "https://github.com/aerovexhq/vexrec"
 
 [workspace.dependencies]
 tokio = { version = "1.38", features = ["full"] }
