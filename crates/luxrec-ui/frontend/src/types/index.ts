@@ -18,6 +18,7 @@ export interface LuxrecSettings {
     videoCodec: "auto" | "h264" | "h265" | "vp9" | "av1";
     quality: "low" | "medium" | "high" | "lossless";
     showCursor: boolean;
+    showRecordingFrame?: boolean;
     hardwareAccel: boolean;
   };
   audio: {

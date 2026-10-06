@@ -182,6 +182,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     className="rounded accent-accent-record"
                   />
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-neutral-200">Show Recording Frame</div>
+                    <div className="text-[11px] text-neutral-400">
+                      Show border frame around the active recording region (never captured in video)
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.recording.showRecordingFrame ?? true}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        recording: {
+                          ...settings.recording,
+                          showRecordingFrame: e.target.checked,
+                        },
+                      })
+                    }
+                    className="rounded accent-accent-record"
+                  />
+                </div>
               </div>
             )}
 

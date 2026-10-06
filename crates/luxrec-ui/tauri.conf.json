@@ -43,6 +43,19 @@
         "transparent": false,
         "center": true,
         "visible": false
+      },
+      {
+        "label": "recording_frame",
+        "title": "",
+        "width": 100,
+        "height": 100,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
       }
     ],
     "security": {

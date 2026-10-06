@@ -95,13 +95,17 @@ impl RecordingPipeline {
 
         let video_src = match crop {
             Some(r) => {
-                let endx = (r.x + r.width as i32 - 1).max(r.x);
-                let endy = (r.y + r.height as i32 - 1).max(r.y);
+                let x = r.x.max(0);
+                let y = r.y.max(0);
+                let w = (r.width.max(32) / 2) * 2;
+                let h = (r.height.max(32) / 2) * 2;
+                let endx = x + w as i32 - 1;
+                let endy = y + h as i32 - 1;
                 format!(
                     "ximagesrc startx={} starty={} endx={} endy={} use-damage=0 show-pointer={} ! \
                      videoconvert ! videorate ! video/x-raw,framerate={}/1 ! \
                      {} ! queue ! mux. ",
-                    r.x.max(0), r.y.max(0), endx, endy, config.recording.show_cursor, config.recording.framerate, video_enc
+                    x, y, endx, endy, config.recording.show_cursor, config.recording.framerate, video_enc
                 )
             }
             None => {
@@ -188,7 +192,12 @@ impl RecordingPipeline {
             LuxrecError::Pipeline("Pipeline does not have an attached bus".to_string())
         })?;
 
-        for msg in bus.iter_timed(gst::ClockTime::from_seconds(5)) {
+        let start_time = std::time::Instant::now();
+        for msg in bus.iter_timed(gst::ClockTime::from_mseconds(250)) {
+            if start_time.elapsed() >= std::time::Duration::from_secs(3) {
+                tracing::warn!("Timed out waiting for EOS, proceeding with pipeline termination");
+                break;
+            }
             match msg.view() {
                 gst::MessageView::Eos(..) => {
                     info!("Received EOS event from pipeline");

@@ -162,8 +162,8 @@ impl X11CaptureEngine {
         Ok(None)
     }
 
-    /// Configures the overlay window with DOCK type and ABVOE/FULLSCREEN states
-    /// to completely eliminate GNOME Focus Stealing Prevention ("is ready" banner).
+    /// Configures the overlay window with UTILITY type and ABOVE/FULLSCREEN states
+    /// to eliminate GNOME Focus Stealing Prevention while preserving full keyboard focus and input.
     pub fn configure_dock_overlay(window: u32) -> Result<()> {
         let (conn, _) = x11rb::connect(None)
             .map_err(|e| LuxrecError::Pipeline(format!("Failed to connect to X11 display: {e}")))?;
@@ -172,7 +172,7 @@ impl X11CaptureEngine {
             .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.reply()
             .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.atom;
 
-        let type_dock_atom = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE_DOCK")
+        let type_utility_atom = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE_UTILITY")
             .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.reply()
             .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.atom;
 
@@ -196,13 +196,13 @@ impl X11CaptureEngine {
             .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.reply()
             .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.atom;
 
-        // Set DOCK type
+        // Set UTILITY type
         conn.change_property32(
             x11rb::protocol::xproto::PropMode::REPLACE,
             window,
             wm_type_atom,
             x11rb::protocol::xproto::AtomEnum::ATOM,
-            &[type_dock_atom],
+            &[type_utility_atom],
         ).map_err(|e| LuxrecError::Pipeline(e.to_string()))?;
 
         // Set STATES

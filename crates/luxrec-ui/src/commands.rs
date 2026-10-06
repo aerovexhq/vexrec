@@ -118,11 +118,79 @@ pub fn hide_recording_tray(app: &tauri::AppHandle) {
     let _ = app.remove_tray_by_id("recording_tray");
 }
 
+pub fn show_recording_frame(
+    app: &tauri::AppHandle,
+    crop: Option<Rect>,
+) -> Result<(), String> {
+    let config = LuxrecConfig::load().unwrap_or_default();
+    if !config.recording.show_recording_frame {
+        return Ok(());
+    }
+
+    if let Some(frame_win) = app.get_webview_window("recording_frame") {
+        const BORDER_THICKNESS: i32 = 3;
+
+        // Position window outside the crop region so the border is never captured in video
+        let (pos_x, pos_y, size_w, size_h) = match crop {
+            Some(r) => {
+                let x = (r.x - BORDER_THICKNESS).max(0);
+                let y = (r.y - BORDER_THICKNESS).max(0);
+                let w = (r.width + 2 * BORDER_THICKNESS as u32) as u32;
+                let h = (r.height + 2 * BORDER_THICKNESS as u32) as u32;
+                (x, y, w, h)
+            }
+            None => {
+                let monitor = frame_win.current_monitor().ok().flatten();
+                let (w, h) = monitor
+                    .map(|m| (m.size().width, m.size().height))
+                    .unwrap_or((1920, 1080));
+                (0, 0, w, h)
+            }
+        };
+
+        let _ = frame_win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+            x: pos_x,
+            y: pos_y,
+        }));
+        let _ = frame_win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+            width: size_w,
+            height: size_h,
+        }));
+
+        let _ = frame_win.set_always_on_top(true);
+
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(gtk_win) = frame_win.gtk_window() {
+                use gtk::prelude::*;
+                gtk_win.realize();
+                gtk_win.set_keep_above(true);
+                gtk_win.set_accept_focus(false);
+                gtk_win.set_skip_taskbar_hint(true);
+                gtk_win.set_skip_pager_hint(true);
+            }
+        }
+
+        let _ = frame_win.show();
+        // Window passes all mouse clicks and gestures straight through (not interactable)
+        // Must be invoked after show()/realize() so the underlying GDK window is present
+        let _ = frame_win.set_ignore_cursor_events(true);
+    }
+    Ok(())
+}
+
+pub fn hide_recording_frame(app: &tauri::AppHandle) {
+    if let Some(frame_win) = app.get_webview_window("recording_frame") {
+        let _ = frame_win.hide();
+    }
+}
+
 pub async fn stop_recording_internal(
     app: &tauri::AppHandle,
     state: &AppRecordingState,
 ) -> Result<Option<CaptureResultDto>, String> {
     hide_recording_tray(app);
+    hide_recording_frame(app);
 
     let pipeline_opt = state.active_pipeline.lock().unwrap().take();
     if let Some(pipeline) = pipeline_opt {
@@ -193,11 +261,12 @@ pub fn trigger_freeze(
         #[cfg(target_os = "linux")]
         {
             if let Ok(gtk_win) = overlay.gtk_window() {
-                use gtk::prelude::GtkWindowExt;
-                gtk_win.set_type_hint(gdk::WindowTypeHint::Dock);
+                use gtk::prelude::*;
+                gtk_win.set_type_hint(gdk::WindowTypeHint::Utility);
                 gtk_win.set_skip_taskbar_hint(true);
                 gtk_win.set_skip_pager_hint(true);
                 gtk_win.set_keep_above(true);
+                gtk_win.set_accept_focus(true);
                 gtk_win.present();
             }
         }
@@ -503,8 +572,16 @@ pub async fn start_recording(
     pipeline.start().map_err(|e| e.to_string())?;
     *state.active_pipeline.lock().unwrap() = Some(pipeline);
 
+    // Hide freeze overlay immediately upon recording start
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let _ = overlay.hide();
+    }
+
     // Show top-right reddish circle tray icon when actively recording
     show_recording_tray(&app)?;
+
+    // Show optional non-interactable border frame around the recording area
+    show_recording_frame(&app, crop)?;
 
     Ok(())
 }
@@ -543,6 +620,7 @@ pub async fn discard_recording(
     state: tauri::State<'_, AppRecordingState>,
 ) -> Result<(), String> {
     hide_recording_tray(&app);
+    hide_recording_frame(&app);
     let pipeline_opt = state.active_pipeline.lock().unwrap().take();
     if let Some(pipeline) = pipeline_opt {
         let _ = pipeline.discard();
