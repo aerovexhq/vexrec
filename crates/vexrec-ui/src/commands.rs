@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use base64::Engine;
 use image::ImageEncoder;
-use vexrec_core::config::VexrecConfig;
+use vexrec_core::config::{ensure_unique_path, VexrecConfig};
 use vexrec_core::formats::ContainerFormat;
 use vexrec_core::geometry::Rect;
 use vexrec_pipeline::encoders::EncoderConfig;
@@ -558,13 +558,13 @@ pub async fn confirm_freeze_capture(
     let out_path = if let Some(ref p) = custom_path {
         if p == "PROMPT_SAVE" || p.is_empty() {
             let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-            save_dir.join(format!("Vexrec_{}.png", now))
+            ensure_unique_path(save_dir.join(format!("Vexrec_{}.png", now)))
         } else {
             expand_path(&PathBuf::from(p))
         }
     } else {
         let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-        save_dir.join(format!("Vexrec_{}.png", now))
+        ensure_unique_path(save_dir.join(format!("Vexrec_{}.png", now)))
     };
 
     if let Some(parent) = out_path.parent() {
@@ -640,7 +640,7 @@ pub async fn start_recording(
     let out_dir = expand_path(&config.storage.recording_dir);
     let _ = std::fs::create_dir_all(&out_dir);
     let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-    let out_path = out_dir.join(format!("Vexrec_{}.{}", now, config.recording.container.extension()));
+    let out_path = ensure_unique_path(out_dir.join(format!("Vexrec_{}.{}", now, config.recording.container.extension())));
 
     let pipeline = if X11CaptureEngine::is_available() {
         RecordingPipeline::new_x11(crop, out_path, &config).map_err(|e| e.to_string())?
@@ -730,7 +730,7 @@ pub async fn capture_screenshot(
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
     let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-    let out_path = dir.join(format!("Vexrec_{}.png", now));
+    let out_path = ensure_unique_path(dir.join(format!("Vexrec_{}.png", now)));
 
     let img = if direct_x11 && X11CaptureEngine::is_available() {
         X11CaptureEngine::capture_screen(crop).map_err(|e| e.to_string())?

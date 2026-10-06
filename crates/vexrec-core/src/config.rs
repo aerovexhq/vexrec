@@ -253,3 +253,28 @@ impl Default for HotkeyConfig {
         }
     }
 }
+
+/// Given a target file path, returns the path itself if it does not exist,
+/// or appends -1, -2, -3, etc. before the extension until an unused path is found.
+pub fn ensure_unique_path<P: AsRef<Path>>(path: P) -> PathBuf {
+    let path = path.as_ref();
+    if !path.exists() {
+        return path.to_path_buf();
+    }
+    let parent = path.parent().unwrap_or_else(|| Path::new(""));
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("output");
+    let ext = path.extension().and_then(|s| s.to_str());
+
+    let mut counter = 1;
+    loop {
+        let new_name = match ext {
+            Some(e) => format!("{}-{}.{}", stem, counter, e),
+            None => format!("{}-{}", stem, counter),
+        };
+        let candidate = parent.join(new_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        counter += 1;
+    }
+}

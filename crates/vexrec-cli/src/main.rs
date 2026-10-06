@@ -2,7 +2,7 @@ use std::os::fd::AsRawFd;
 use std::path::PathBuf;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
-use vexrec_core::config::VexrecConfig;
+use vexrec_core::config::{ensure_unique_path, VexrecConfig};
 use vexrec_core::formats::ContainerFormat;
 use vexrec_core::geometry::{Point, Rect};
 use vexrec_pipeline::encoders::EncoderConfig;
@@ -217,7 +217,7 @@ async fn main() -> anyhow::Result<()> {
                 let dir = expand_path(&config.storage.screenshot_dir);
                 std::fs::create_dir_all(&dir).ok();
                 let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                dir.join(format!("Vexrec_{}.png", now))
+                ensure_unique_path(dir.join(format!("Vexrec_{}.png", now)))
             });
 
             if let Some(parent) = out_path.parent() {
@@ -307,7 +307,7 @@ async fn main() -> anyhow::Result<()> {
                 let dir = expand_path(&run_config.storage.recording_dir);
                 std::fs::create_dir_all(&dir).ok();
                 let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                dir.join(format!("Vexrec_{}.{}", now, run_config.recording.container.extension()))
+                ensure_unique_path(dir.join(format!("Vexrec_{}.{}", now, run_config.recording.container.extension())))
             });
 
             if let Some(parent) = out_path.parent() {
