@@ -39,7 +39,7 @@ impl EncoderConfig {
             ContainerFormat::Mp4 => "mp4mux faststart=true",
             ContainerFormat::Mkv => "matroskamux",
             ContainerFormat::Webm => "webmmux",
-            ContainerFormat::Gif => "image/gif",
+            ContainerFormat::Gif => "gifenc",
         };
 
         (video_enc.to_string(), muxer.to_string())

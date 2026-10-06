@@ -84,6 +84,13 @@ enum Commands {
     },
     /// Launch the interactive minimalist floating GUI
     Gui,
+    /// Run as a background daemon (starts hidden with system tray and global shortcuts)
+    Daemon,
+    /// Trigger the instant freeze-screen interactive capture overlay
+    Freeze,
+    /// Stop active recording immediately
+    #[command(name = "stop-recording")]
+    StopRecording,
     /// Print system and multimedia capabilities diagnostics
     Doctor,
 }
@@ -281,6 +288,34 @@ async fn main() -> anyhow::Result<()> {
         Commands::Gui => {
             println!("Launching Luxrec Minimalist Desktop Interface...");
             luxrec_ui::run_app();
+        }
+
+        Commands::Daemon => {
+            println!("Starting Luxrec in background daemon mode (hidden)...");
+            luxrec_ui::run_daemon();
+        }
+
+        Commands::Freeze => {
+            match luxrec_ui::send_daemon_command("freeze").await {
+                Ok(_) => {
+                    println!("Triggered freeze overlay in running Luxrec instance");
+                }
+                Err(_) => {
+                    println!("Daemon not active, launching Luxrec GUI...");
+                    luxrec_ui::run_app();
+                }
+            }
+        }
+
+        Commands::StopRecording => {
+            match luxrec_ui::send_daemon_command("stop_recording").await {
+                Ok(resp) => {
+                    println!("Recording stopped: {resp}");
+                }
+                Err(e) => {
+                    eprintln!("Failed to stop recording: {e}");
+                }
+            }
         }
     }
 

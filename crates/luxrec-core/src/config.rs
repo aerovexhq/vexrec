@@ -5,7 +5,24 @@ use crate::formats::{AudioCodec, ContainerFormat, ImageFormat, VideoCodec, Video
 use crate::geometry::Rect;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeneralConfig {
+    pub autostart: bool,
+    pub close_to_tray: bool,
+}
+
+impl Default for GeneralConfig {
+    fn default() -> Self {
+        Self {
+            autostart: true,
+            close_to_tray: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LuxrecConfig {
+    #[serde(default)]
+    pub general: GeneralConfig,
     pub recording: RecordingConfig,
     pub audio: AudioConfig,
     pub camera: CameraConfig,
@@ -17,6 +34,7 @@ pub struct LuxrecConfig {
 impl Default for LuxrecConfig {
     fn default() -> Self {
         Self {
+            general: GeneralConfig::default(),
             recording: RecordingConfig::default(),
             audio: AudioConfig::default(),
             camera: CameraConfig::default(),
@@ -159,6 +177,10 @@ pub struct ScreenshotConfig {
     pub show_preview_hud: bool,
     pub preview_hud_timeout_secs: u32,
     pub include_cursor: bool,
+    #[serde(default)]
+    pub last_mode: Option<String>,
+    #[serde(default)]
+    pub last_region: Option<Rect>,
 }
 
 impl Default for ScreenshotConfig {
@@ -169,6 +191,8 @@ impl Default for ScreenshotConfig {
             show_preview_hud: true,
             preview_hud_timeout_secs: 5,
             include_cursor: false,
+            last_mode: Some("area".to_string()),
+            last_region: None,
         }
     }
 }

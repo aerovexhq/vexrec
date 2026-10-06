@@ -6,6 +6,10 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "luxrec"
+path = "src/main.rs"
+
 [dependencies]
 luxrec-core = { path = "../luxrec-core" }
 luxrec-portal = { path = "../luxrec-portal" }

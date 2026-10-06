@@ -9,6 +9,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Luxrec HUD",
         "width": 500,
         "height": 72,
@@ -17,7 +18,31 @@
         "transparent": true,
         "alwaysOnTop": true,
         "center": true,
-        "shadow": false
+        "shadow": false,
+        "visible": false
+      },
+      {
+        "label": "overlay",
+        "title": "",
+        "fullscreen": true,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
+      },
+      {
+        "label": "settings",
+        "title": "Luxrec Preferences",
+        "width": 640,
+        "height": 540,
+        "resizable": false,
+        "decorations": true,
+        "transparent": false,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {
