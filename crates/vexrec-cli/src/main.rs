@@ -32,7 +32,11 @@ enum Commands {
         #[arg(short, long)]
         interactive: bool,
 
-        /// Direct X11 capture (bypasses portal dialog on X11)
+        /// Force use of XDG Desktop Portal (even on X11)
+        #[arg(long)]
+        portal: bool,
+
+        /// Direct X11 capture (bypasses portal dialog; default on X11 displays)
         #[arg(long)]
         x11: bool,
 
@@ -119,6 +123,14 @@ fn parse_crop_rect(s: &str) -> Option<Rect> {
     Some(Rect::new(x, y, width, height))
 }
 
+fn expand_path(p: &std::path::Path) -> PathBuf {
+    if let Ok(stripped) = p.strip_prefix("~") {
+        dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join(stripped)
+    } else {
+        p.to_path_buf()
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let subscriber = FmtSubscriber::builder()
@@ -192,6 +204,7 @@ async fn main() -> anyhow::Result<()> {
 
         Commands::Screenshot {
             interactive,
+            portal,
             x11,
             clipboard,
             crop,
@@ -200,9 +213,9 @@ async fn main() -> anyhow::Result<()> {
             info!("Initiating screenshot capture");
             let crop_rect = crop.as_deref().and_then(parse_crop_rect);
 
-            let out_path = output.unwrap_or_else(|| {
-                let dir = &config.storage.screenshot_dir;
-                std::fs::create_dir_all(dir).ok();
+            let out_path = output.map(|p| expand_path(&p)).unwrap_or_else(|| {
+                let dir = expand_path(&config.storage.screenshot_dir);
+                std::fs::create_dir_all(&dir).ok();
                 let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
                 dir.join(format!("Vexrec_{}.png", now))
             });
@@ -211,7 +224,10 @@ async fn main() -> anyhow::Result<()> {
                 std::fs::create_dir_all(parent).ok();
             }
 
-            if x11 && X11CaptureEngine::is_available() {
+            // On X11 displays, default directly to instantaneous X11 capture unless portal or interactive selection is explicitly requested
+            let use_x11 = (x11 || (!portal && !interactive)) && X11CaptureEngine::is_available();
+
+            if use_x11 {
                 println!("Capturing screen via direct X11 engine...");
                 let img = X11CaptureEngine::capture_screen(crop_rect)?;
 
@@ -225,7 +241,21 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 let portal = PortalClient::new();
                 println!("Requesting screenshot via XDG Desktop Portal...");
-                let uri = portal.request_screenshot(interactive).await?;
+                let result = portal.request_screenshot(interactive).await;
+                let uri = match result {
+                    Ok(u) => u,
+                    Err(e) => {
+                        let err_str = e.to_string();
+                        if err_str.contains("Cancelled")
+                            || err_str.contains("didn't succeed")
+                            || err_str.contains("Other")
+                        {
+                            println!("Screenshot request cancelled by user.");
+                            return Ok(());
+                        }
+                        return Err(e.into());
+                    }
+                };
                 println!("Screenshot granted by portal: {}", uri);
 
                 if let Ok(file_path) = uri.to_file_path() {
@@ -273,9 +303,9 @@ async fn main() -> anyhow::Result<()> {
                 _ => ContainerFormat::Mp4,
             };
 
-            let out_path = output.unwrap_or_else(|| {
-                let dir = &run_config.storage.recording_dir;
-                std::fs::create_dir_all(dir).ok();
+            let out_path = output.map(|p| expand_path(&p)).unwrap_or_else(|| {
+                let dir = expand_path(&run_config.storage.recording_dir);
+                std::fs::create_dir_all(&dir).ok();
                 let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
                 dir.join(format!("Vexrec_{}.{}", now, run_config.recording.container.extension()))
             });
