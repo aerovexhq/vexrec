@@ -32,5 +32,5 @@ uuid = { version = "1.8", features = ["v4", "serde"] }
 arboard = "3.6"
 imageproc = "0.27"
 x11rb = { version = "0.14", features = ["shm"] }
-tauri = { version = "2.0", default-features = false, features = ["wry", "tray-icon", "image-png"] }
+tauri = { version = "2.0", default-features = false, features = ["wry", "tray-icon", "image-png", "custom-protocol"] }
 tauri-build = { version = "2.0", default-features = false }
