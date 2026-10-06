@@ -117,6 +117,12 @@ fn spawn_socket_server(app_handle: tauri::AppHandle) {
                                         }
                                     }
                                 }
+                                "cancel_freeze" => {
+                                    if let Some(overlay) = app.get_webview_window("overlay") {
+                                        let _ = overlay.hide();
+                                    }
+                                    let _ = writer.write_all(b"OK: freeze cancelled\n").await;
+                                }
                                 "ping" => {
                                     let _ = writer.write_all(b"pong\n").await;
                                 }
@@ -173,13 +179,20 @@ pub fn run_app_mode(is_daemon: bool) {
 
             #[cfg(target_os = "linux")]
             {
+                std::thread::spawn(|| {
+                    let _ = std::process::Command::new("gsettings")
+                        .args(["set", "org.gnome.shell.keybindings", "screenshot", "[]"])
+                        .status();
+                });
+
                 if let Some(overlay_win) = app.get_webview_window("overlay") {
                     if let Ok(gtk_win) = overlay_win.gtk_window() {
-                        use gtk::prelude::GtkWindowExt;
-                        gtk_win.set_type_hint(gdk::WindowTypeHint::Dock);
+                        use gtk::prelude::*;
+                        gtk_win.set_type_hint(gdk::WindowTypeHint::Utility);
                         gtk_win.set_skip_taskbar_hint(true);
                         gtk_win.set_skip_pager_hint(true);
                         gtk_win.set_keep_above(true);
+                        gtk_win.set_accept_focus(true);
                     }
                 }
             }

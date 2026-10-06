@@ -90,14 +90,85 @@ pub fn create_red_circle_icon() -> tauri::image::Image<'static> {
     tauri::image::Image::new_owned(rgba, SIZE, SIZE)
 }
 
+pub fn show_recording_indicator(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("recording_indicator") {
+        let monitor = win.current_monitor().ok().flatten();
+        let (screen_w, _) = monitor
+            .map(|m| (m.size().width, m.size().height))
+            .unwrap_or((1920, 1080));
+
+        let width = 100;
+        let height = 28;
+        // Position inside GNOME top bar: y=2 centers in 32px bar, x=screen_w - 320 positions beside status icons
+        let x = (screen_w as i32) - 320;
+        let y = 2;
+
+        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+            width,
+            height,
+        }));
+        let _ = win.set_always_on_top(true);
+
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(gtk_win) = win.gtk_window() {
+                use gtk::prelude::*;
+                gtk_win.realize();
+                gtk_win.set_keep_above(true);
+                gtk_win.set_type_hint(gdk::WindowTypeHint::Utility);
+                gtk_win.set_skip_taskbar_hint(true);
+                gtk_win.set_skip_pager_hint(true);
+                gtk_win.set_accept_focus(false);
+            }
+        }
+
+        let _ = win.show();
+        let _ = app.emit("luxrec://recording-started", ());
+    }
+    Ok(())
+}
+
+pub fn hide_recording_indicator(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("recording_indicator") {
+        let _ = win.hide();
+    }
+}
+
 pub fn show_recording_tray(app: &tauri::AppHandle) -> Result<(), String> {
     let _ = app.remove_tray_by_id("recording_tray");
     let icon = create_red_circle_icon();
     let app_handle = app.clone();
 
+    let stop_item = tauri::menu::MenuItem::with_id(app, "stop", "Stop Recording", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let discard_item = tauri::menu::MenuItem::with_id(app, "discard", "Discard Recording", true, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    let menu = tauri::menu::Menu::with_items(app, &[&stop_item, &discard_item])
+        .map_err(|e| e.to_string())?;
+
     tauri::tray::TrayIconBuilder::with_id("recording_tray")
         .icon(icon)
         .tooltip("Recording in progress - Click to stop")
+        .menu(&menu)
+        .on_menu_event(move |app, event| {
+            let id = event.id().as_ref();
+            if id == "stop" {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(state) = app.try_state::<AppRecordingState>() {
+                        let _ = stop_recording_internal(&app, &state).await;
+                    }
+                });
+            } else if id == "discard" {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(state) = app.try_state::<AppRecordingState>() {
+                        discard_recording_internal(&app, &state).await;
+                    }
+                });
+            }
+        })
         .on_tray_icon_event(move |_tray, event| {
             if let tauri::tray::TrayIconEvent::Click { button_state: tauri::tray::MouseButtonState::Up, .. } = event {
                 let app = app_handle.clone();
@@ -185,12 +256,26 @@ pub fn hide_recording_frame(app: &tauri::AppHandle) {
     }
 }
 
+pub async fn discard_recording_internal(
+    app: &tauri::AppHandle,
+    state: &AppRecordingState,
+) {
+    hide_recording_tray(app);
+    hide_recording_frame(app);
+    hide_recording_indicator(app);
+    let pipeline_opt = state.active_pipeline.lock().unwrap().take();
+    if let Some(pipeline) = pipeline_opt {
+        let _ = pipeline.discard();
+    }
+}
+
 pub async fn stop_recording_internal(
     app: &tauri::AppHandle,
     state: &AppRecordingState,
 ) -> Result<Option<CaptureResultDto>, String> {
     hide_recording_tray(app);
     hide_recording_frame(app);
+    hide_recording_indicator(app);
 
     let pipeline_opt = state.active_pipeline.lock().unwrap().take();
     if let Some(pipeline) = pipeline_opt {
@@ -267,19 +352,19 @@ pub fn trigger_freeze(
                 gtk_win.set_skip_pager_hint(true);
                 gtk_win.set_keep_above(true);
                 gtk_win.set_accept_focus(true);
+                gtk_win.show();
                 gtk_win.present();
+                gtk_win.grab_focus();
             }
         }
         overlay.show().map_err(|e| e.to_string())?;
         overlay.set_focus().map_err(|e| e.to_string())?;
     }
 
-    // Configure all X11 windows of this process to dock layer so GNOME never shows "is ready" banner
-    if let Ok(windows) = X11CaptureEngine::find_all_windows_by_pid(std::process::id()) {
-        for win in windows {
-            let _ = X11CaptureEngine::configure_dock_overlay(win);
-            let _ = X11CaptureEngine::grab_input_focus(win);
-        }
+    // Configure ONLY the full-screen overlay X11 window to UTILITY/ABOVE and send _NET_ACTIVE_WINDOW
+    if let Ok(Some(overlay_win)) = X11CaptureEngine::find_overlay_window(std::process::id(), 1920, 1080) {
+        let _ = X11CaptureEngine::configure_dock_overlay(overlay_win);
+        let _ = X11CaptureEngine::activate_and_grab_focus(overlay_win);
     }
 
     Ok(())
@@ -577,8 +662,11 @@ pub async fn start_recording(
         let _ = overlay.hide();
     }
 
+    // Show Ubuntu-style squircle recording indicator in top bar
+    let _ = show_recording_indicator(&app);
+
     // Show top-right reddish circle tray icon when actively recording
-    show_recording_tray(&app)?;
+    let _ = show_recording_tray(&app);
 
     // Show optional non-interactable border frame around the recording area
     show_recording_frame(&app, crop)?;
@@ -619,12 +707,7 @@ pub async fn discard_recording(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppRecordingState>,
 ) -> Result<(), String> {
-    hide_recording_tray(&app);
-    hide_recording_frame(&app);
-    let pipeline_opt = state.active_pipeline.lock().unwrap().take();
-    if let Some(pipeline) = pipeline_opt {
-        let _ = pipeline.discard();
-    }
+    discard_recording_internal(&app, &state).await;
     Ok(())
 }
 

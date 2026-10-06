@@ -243,19 +243,74 @@ impl X11CaptureEngine {
         Ok(())
     }
 
-    /// Grabs input focus safely for the window
-    pub fn grab_input_focus(window: u32) -> Result<()> {
+    /// Finds the full-screen overlay window owned by the target PID
+    pub fn find_overlay_window(target_pid: u32, min_w: u16, min_h: u16) -> Result<Option<u32>> {
         let (conn, _) = x11rb::connect(None)
             .map_err(|e| LuxrecError::Pipeline(format!("Failed to connect to X11 display: {e}")))?;
 
+        let windows = Self::find_all_windows_by_pid(target_pid)?;
+        for win in windows {
+            if let Ok(cookie) = conn.get_geometry(win) {
+                if let Ok(geom) = cookie.reply() {
+                    if geom.width >= min_w && geom.height >= min_h {
+                        return Ok(Some(win));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Activates the overlay window and requests keyboard focus using EWMH _NET_ACTIVE_WINDOW
+    pub fn activate_and_grab_focus(window: u32) -> Result<()> {
+        let (conn, screen_num) = x11rb::connect(None)
+            .map_err(|e| LuxrecError::Pipeline(format!("Failed to connect to X11 display: {e}")))?;
+
+        let screen = &conn.setup().roots[screen_num];
+        let root = screen.root;
+
+        let active_win_atom = conn.intern_atom(false, b"_NET_ACTIVE_WINDOW")
+            .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.reply()
+            .map_err(|e| LuxrecError::Pipeline(e.to_string()))?.atom;
+
+        // EWMH _NET_ACTIVE_WINDOW ClientMessage to root window
+        let event = x11rb::protocol::xproto::ClientMessageEvent {
+            response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
+            format: 32,
+            sequence: 0,
+            window,
+            type_: active_win_atom,
+            data: x11rb::protocol::xproto::ClientMessageData::from([
+                2, // Source: 2 = pager or direct user action
+                x11rb::protocol::xproto::Time::CURRENT_TIME.into(),
+                0,
+                0,
+                0,
+            ]),
+        };
+
+        let _ = conn.send_event(
+            false,
+            root,
+            x11rb::protocol::xproto::EventMask::SUBSTRUCTURE_REDIRECT | x11rb::protocol::xproto::EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        );
+
         let _ = conn.set_input_focus(
-            x11rb::protocol::xproto::InputFocus::POINTER_ROOT,
+            x11rb::protocol::xproto::InputFocus::PARENT,
             window,
             x11rb::protocol::xproto::Time::CURRENT_TIME,
         );
 
         conn.flush().map_err(|e| LuxrecError::Pipeline(e.to_string()))?;
-        info!(win = window, "Successfully grabbed X11 keyboard focus for overlay");
+        info!(win = window, "Successfully activated and grabbed X11 keyboard focus for overlay");
         Ok(())
     }
+
+    /// Grabs input focus safely for the window
+    pub fn grab_input_focus(window: u32) -> Result<()> {
+        Self::activate_and_grab_focus(window)
+    }
 }
+
