@@ -9,7 +9,7 @@ license=('MIT')
 depends=('gstreamer' 'gst-plugins-base' 'gst-plugins-good' 'gst-plugin-pipewire' 'pipewire' 'xdg-desktop-portal')
 provides=('vexrec' 'luxrec')
 conflicts=('vexrec' 'luxrec')
-source=("https://github.com/aerovexhq/vexrec/releases/download/v${pkgver}/vexrec-v${pkgver}-linux-x86_64.tar.gz")
+source=("https://github.com/aerovexhq/vexrec/releases/download/${pkgver}/vexrec-linux-x86_64.tar.gz")
 sha256sums=('SKIP')
 
 package() {

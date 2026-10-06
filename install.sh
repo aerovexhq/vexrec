@@ -20,6 +20,18 @@ BIN_DIR="${PREFIX}/bin"
 APP_DIR="${SHARE_PREFIX}/applications"
 ICON_BASE="${SHARE_PREFIX}/icons/hicolor"
 
+# Handle uninstall flag
+if [ "${1:-}" = "--uninstall" ] || [ "${1:-}" = "-u" ]; then
+    echo "==> Uninstalling Vexrec..."
+    rm -f "${BIN_DIR}/vexrec" "${BIN_DIR}/luxrec"
+    rm -f "${APP_DIR}/vexrec.desktop" "${APP_DIR}/luxrec.desktop"
+    rm -f "${ICON_BASE}/32x32/apps/vexrec.png"
+    rm -f "${ICON_BASE}/128x128/apps/vexrec.png"
+    rm -f "${ICON_BASE}/256x256/apps/vexrec.png"
+    echo "==> Vexrec successfully uninstalled."
+    exit 0
+fi
+
 echo "=========================================="
 echo "          Installing Vexrec v${VERSION}    "
 echo "=========================================="
@@ -51,11 +63,18 @@ else
         exit 1
     fi
 
-    TAR_NAME="vexrec-v${VERSION}-linux-x86_64.tar.gz"
-    URL="https://github.com/${REPO}/releases/download/v${VERSION}/${TAR_NAME}"
+    TAG="${VERSION}"
+    TAR_NAME="vexrec-linux-x86_64.tar.gz"
+    URL="https://github.com/${REPO}/releases/download/${TAG}/${TAR_NAME}"
 
     echo "Downloading ${URL}..."
-    curl -fsSL "${URL}" -o "${TMP_DIR}/${TAR_NAME}"
+    if ! curl -fsSL "${URL}" -o "${TMP_DIR}/${TAR_NAME}"; then
+        # Fallback to alternate tarball name
+        ALT_TAR_NAME="vexrec-v${VERSION}-linux-x86_64.tar.gz"
+        ALT_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ALT_TAR_NAME}"
+        echo "Trying fallback: ${ALT_URL}..."
+        curl -fsSL "${ALT_URL}" -o "${TMP_DIR}/${TAR_NAME}"
+    fi
     tar -xzf "${TMP_DIR}/${TAR_NAME}" -C "${TMP_DIR}"
     SRC_DIR="${TMP_DIR}"
     SRC_BIN="${TMP_DIR}/vexrec"
