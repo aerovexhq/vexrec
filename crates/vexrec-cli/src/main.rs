@@ -392,8 +392,26 @@ async fn main() -> anyhow::Result<()> {
                     println!("Triggered freeze overlay in running Vexrec instance");
                 }
                 Err(_) => {
-                    println!("Daemon not active, launching Vexrec GUI...");
-                    vexrec_ui::run_app();
+                    println!("Daemon not active, starting vexrec-daemon.service...");
+                    let _ = std::process::Command::new("systemctl")
+                        .args(["--user", "start", "vexrec-daemon.service"])
+                        .status();
+
+                    let mut triggered = false;
+                    for _ in 0..40 {
+                        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                        if vexrec_ui::send_daemon_command("freeze").await.is_ok() {
+                            triggered = true;
+                            break;
+                        }
+                    }
+
+                    if triggered {
+                        println!("Triggered freeze overlay in restarted Vexrec daemon");
+                    } else {
+                        println!("Daemon service unavailable, launching Vexrec GUI...");
+                        vexrec_ui::run_app();
+                    }
                 }
             }
         }
