@@ -65,6 +65,42 @@ pub fn expand_path(p: &std::path::Path) -> PathBuf {
     p.to_path_buf()
 }
 
+/// Sends a desktop notification whose default action (clicking the notification body)
+/// opens `path` with the system default application for its file type via `xdg-open`.
+/// The notification is handled on a detached thread so callers are never blocked.
+pub fn notify_with_open_action(icon: &str, title: &str, body: &str, path: &std::path::Path) {
+    let icon = icon.to_string();
+    let title = title.to_string();
+    let body = body.to_string();
+    let path = path.to_path_buf();
+
+    std::thread::spawn(move || {
+        let output = std::process::Command::new("notify-send")
+            .args([
+                "-a", "Vexrec",
+                "-i", icon.as_str(),
+                "-A", "default=Open",
+                "--wait",
+                title.as_str(),
+                body.as_str(),
+            ])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output();
+
+        if let Ok(out) = output {
+            if String::from_utf8_lossy(&out.stdout).trim() == "default" {
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(&path)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+            }
+        }
+    });
+}
+
 pub fn create_red_circle_icon() -> tauri::image::Image<'static> {
     const SIZE: u32 = 32;
     let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
@@ -286,14 +322,12 @@ pub async fn stop_recording_internal(
         let meta = std::fs::metadata(&out_path).ok();
         let file_size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
 
-        let _ = std::process::Command::new("notify-send")
-            .args([
-                "-a", "Vexrec",
-                "-i", "video-x-generic",
-                "Recording Saved",
-                &format!("Video saved to {}", out_path.display()),
-            ])
-            .spawn();
+        notify_with_open_action(
+            "video-x-generic",
+            "Recording Saved",
+            &format!("Video saved to {}", out_path.display()),
+            &out_path,
+        );
 
         let res = CaptureResultDto {
             file_path: out_path.to_string_lossy().to_string(),
@@ -589,14 +623,12 @@ pub async fn confirm_freeze_capture(
     let meta = std::fs::metadata(&out_path).map_err(|e| e.to_string())?;
     let (w, h) = cropped.dimensions();
 
-    let _ = std::process::Command::new("notify-send")
-        .args([
-            "-a", "Vexrec",
-            "-i", "camera-photo",
-            "Screenshot Saved",
-            &format!("Saved to {}\nCopied to clipboard", out_path.display()),
-        ])
-        .spawn();
+    notify_with_open_action(
+        "camera-photo",
+        "Screenshot Saved",
+        &format!("Saved to {}\nCopied to clipboard", out_path.display()),
+        &out_path,
+    );
 
     Ok(CaptureResultDto {
         file_path: out_path.to_string_lossy().to_string(),
