@@ -26,6 +26,7 @@ interface FreezeWindowInfo {
 }
 
 interface FreezeData {
+  seq: number;
   image_path: string;
   image_url?: string;
   width: number;
@@ -71,8 +72,30 @@ export const FreezeOverlay: React.FC = () => {
     };
   }, [data]);
 
-  const applyFreezeData = useCallback((dto: FreezeData) => {
+  const lastSeqRef = useRef(0);
+
+  const applyFreezeData = useCallback(async (dto: FreezeData) => {
+    // Ignore frames that are not strictly newer than the one already shown.
+    if (dto.seq <= lastSeqRef.current) return;
+    lastSeqRef.current = dto.seq;
+
     const url = dto.image_url || (dto.image_path ? convertFileSrc(dto.image_path) : "");
+
+    // Fully decode the new bitmap before committing it so the overlay never paints the
+    // previous frame or an empty image while the new one is still loading.
+    if (url) {
+      try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+      } catch {
+        // Fall through: commit anyway so the overlay is still usable.
+      }
+    }
+
+    // A newer frame may have arrived while decoding.
+    if (dto.seq < lastSeqRef.current) return;
+
     setData({ ...dto, image_url: url });
     setIsSubmitting(false);
 
@@ -105,33 +128,54 @@ export const FreezeOverlay: React.FC = () => {
     }
   }, []);
 
+  // Acknowledge to the backend once this exact frame is committed to the DOM. The backend
+  // maps the window only after receiving this, which prevents stale or unpainted frames.
+  useEffect(() => {
+    if (data?.seq) {
+      invoke("freeze_frame_ready", { seq: data.seq }).catch(() => {});
+      window.focus();
+      containerRef.current?.focus();
+    }
+  }, [data?.seq]);
+
   useEffect(() => {
     const fetchFreeze = () => {
       invoke<FreezeData | null>("get_freeze_data").then((res) => {
         if (res) {
           applyFreezeData(res);
-          window.focus();
-          containerRef.current?.focus();
         }
       });
     };
 
+    const refocus = () => {
+      if (document.visibilityState === "visible") {
+        window.focus();
+        containerRef.current?.focus();
+      }
+    };
+
     fetchFreeze();
     window.addEventListener("focus", fetchFreeze);
+    document.addEventListener("visibilitychange", refocus);
     const handler = (event: { payload: FreezeData }) => {
       applyFreezeData(event.payload);
-      window.focus();
-      containerRef.current?.focus();
+    };
+    const hiddenHandler = () => {
+      // Drop the previous frame so it can never flash when the overlay is shown again.
+      setData(null);
+      setCrop(null);
     };
 
     const unlistenVexrec = listen<FreezeData>("vexrec://freeze-ready", handler);
     const unlistenLuxrec = listen<FreezeData>("luxrec://freeze-ready", handler);
+    const unlistenHidden = listen("vexrec://freeze-hidden", hiddenHandler);
 
     return () => {
       window.removeEventListener("focus", fetchFreeze);
-      document.removeEventListener("visibilitychange", fetchFreeze);
+      document.removeEventListener("visibilitychange", refocus);
       unlistenVexrec.then((fn) => fn());
       unlistenLuxrec.then((fn) => fn());
+      unlistenHidden.then((fn) => fn());
     };
   }, [applyFreezeData]);
 

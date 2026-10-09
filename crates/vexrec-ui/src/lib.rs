@@ -129,9 +129,7 @@ fn spawn_socket_server(app_handle: tauri::AppHandle) {
                                     }
                                 }
                                 "cancel_freeze" => {
-                                    if let Some(overlay) = app.get_webview_window("overlay") {
-                                        let _ = overlay.hide();
-                                    }
+                                    hide_freeze_overlay(&app);
                                     let _ = writer.write_all(b"OK: freeze cancelled\n").await;
                                 }
                                 "ping" => {
@@ -170,6 +168,7 @@ pub fn run_app_mode(is_daemon: bool) {
             commands::set_window_position,
             commands::open_settings_window,
             commands::get_freeze_data,
+            commands::freeze_frame_ready,
             commands::confirm_freeze_capture,
             commands::cancel_freeze,
             commands::start_recording,

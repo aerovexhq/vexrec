@@ -262,6 +262,47 @@ impl X11CaptureEngine {
         Ok(None)
     }
 
+    /// Polls until the window reports `Viewable`, or the timeout elapses.
+    /// Window managers ignore _NET_ACTIVE_WINDOW and focus requests on unmapped windows.
+    pub fn wait_until_viewable(window: u32, timeout: std::time::Duration) -> bool {
+        let Ok((conn, _)) = x11rb::connect(None) else {
+            return false;
+        };
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            if let Ok(cookie) = conn.get_window_attributes(window) {
+                if let Ok(attrs) = cookie.reply() {
+                    if attrs.map_state == x11rb::protocol::xproto::MapState::VIEWABLE {
+                        return true;
+                    }
+                }
+            }
+            if std::time::Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    /// Returns the window currently reported by the window manager as `_NET_ACTIVE_WINDOW`.
+    pub fn active_window() -> Option<u32> {
+        let (conn, screen_num) = x11rb::connect(None).ok()?;
+        let root = conn.setup().roots[screen_num].root;
+        let atom = conn
+            .intern_atom(false, b"_NET_ACTIVE_WINDOW")
+            .ok()?
+            .reply()
+            .ok()?
+            .atom;
+        let reply = conn
+            .get_property(false, root, atom, x11rb::protocol::xproto::AtomEnum::WINDOW, 0, 1)
+            .ok()?
+            .reply()
+            .ok()?;
+        let first = reply.value32()?.next();
+        first
+    }
+
     /// Activates the overlay window and requests keyboard focus using EWMH _NET_ACTIVE_WINDOW
     pub fn activate_and_grab_focus(window: u32) -> Result<()> {
         let (conn, screen_num) = x11rb::connect(None)

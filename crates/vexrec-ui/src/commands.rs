@@ -1,5 +1,6 @@
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Condvar, Mutex};
 use base64::Engine;
 use image::ImageEncoder;
 use vexrec_core::config::{ensure_unique_path, VexrecConfig};
@@ -32,6 +33,7 @@ pub struct CaptureResultDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreezeDataDto {
+    pub seq: u64,
     pub image_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_url: Option<String>,
@@ -44,6 +46,11 @@ pub struct FreezeDataDto {
 pub struct AppRecordingState {
     pub active_pipeline: Mutex<Option<RecordingPipeline>>,
     pub freeze_data: Mutex<Option<FreezeDataDto>>,
+    /// Monotonic frame counter used to ignore stale freeze frames.
+    pub freeze_seq: AtomicU64,
+    /// Highest frame sequence acknowledged by the overlay webview.
+    pub freeze_ack: Mutex<u64>,
+    pub freeze_ack_cv: Condvar,
 }
 
 impl Default for AppRecordingState {
@@ -51,6 +58,9 @@ impl Default for AppRecordingState {
         Self {
             active_pipeline: Mutex::new(None),
             freeze_data: Mutex::new(None),
+            freeze_seq: AtomicU64::new(0),
+            freeze_ack: Mutex::new(0),
+            freeze_ack_cv: Condvar::new(),
         }
     }
 }
@@ -389,7 +399,9 @@ pub fn trigger_freeze(
     let image_url = Some(format!("data:image/png;base64,{}", b64));
 
     let config = VexrecConfig::load().unwrap_or_default();
+    let seq = state.freeze_seq.fetch_add(1, Ordering::SeqCst) + 1;
     let freeze_dto = FreezeDataDto {
+        seq,
         image_path: freeze_path.to_string_lossy().to_string(),
         image_url,
         width,
@@ -402,6 +414,17 @@ pub fn trigger_freeze(
 
     let _ = app.emit("vexrec://freeze-ready", &freeze_dto);
     let _ = app.emit("luxrec://freeze-ready", &freeze_dto);
+
+    // Wait (bounded) until the overlay webview has decoded and committed this exact frame.
+    // Mapping the window earlier shows the previous frame or an unpainted surface until the
+    // user interacts with it.
+    {
+        let acked = state.freeze_ack.lock().unwrap();
+        let _ = state
+            .freeze_ack_cv
+            .wait_timeout_while(acked, std::time::Duration::from_millis(1200), |a| *a < seq)
+            .unwrap();
+    }
 
     if let Some(overlay) = app.get_webview_window("overlay") {
         #[cfg(target_os = "linux")]
@@ -425,13 +448,45 @@ pub fn trigger_freeze(
         overlay.set_focus().map_err(|e| e.to_string())?;
     }
 
-    // Configure ONLY the full-screen overlay X11 window to UTILITY/ABOVE and send _NET_ACTIVE_WINDOW
-    if let Ok(Some(overlay_win)) = X11CaptureEngine::find_overlay_window(std::process::id(), 1920, 1080) {
-        let _ = X11CaptureEngine::configure_dock_overlay(overlay_win);
-        let _ = X11CaptureEngine::activate_and_grab_focus(overlay_win);
+    // Configure ONLY the full-screen overlay X11 window to UTILITY/ABOVE and request focus.
+    // The window must be viewable before the window manager honours _NET_ACTIVE_WINDOW, so
+    // wait for the map to complete and re-assert focus a few times to win any focus races.
+    let min_w = width.min(u16::MAX as u32) as u16;
+    let min_h = height.min(u16::MAX as u32) as u16;
+    let mut overlay_win = None;
+    for _ in 0..50 {
+        if let Ok(Some(w)) = X11CaptureEngine::find_overlay_window(std::process::id(), min_w, min_h) {
+            overlay_win = Some(w);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    if let Some(win) = overlay_win {
+        let _ = X11CaptureEngine::wait_until_viewable(win, std::time::Duration::from_millis(500));
+        let _ = X11CaptureEngine::configure_dock_overlay(win);
+        for attempt in 0..12u64 {
+            let _ = X11CaptureEngine::activate_and_grab_focus(win);
+            std::thread::sleep(std::time::Duration::from_millis(30 + attempt * 10));
+            if X11CaptureEngine::active_window() == Some(win) {
+                break;
+            }
+        }
     }
 
     Ok(())
+}
+
+/// Hides the freeze overlay and discards the stored frame so a stale image can never be
+/// presented the next time the overlay is shown. The webview is told to drop its copy too.
+pub fn hide_freeze_overlay(app: &tauri::AppHandle) {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let _ = overlay.hide();
+    }
+    if let Some(state) = app.try_state::<AppRecordingState>() {
+        *state.freeze_data.lock().unwrap() = None;
+    }
+    let _ = app.emit("vexrec://freeze-hidden", ());
 }
 
 #[tauri::command]
@@ -580,11 +635,25 @@ pub async fn get_freeze_data(
     Ok(state.freeze_data.lock().unwrap().clone())
 }
 
+/// Called by the overlay webview once the frame identified by `seq` has been decoded and
+/// committed to the DOM. The backend waits for this acknowledgement before mapping the window,
+/// so the user never sees a previous frame or an unpainted overlay.
+#[tauri::command]
+pub async fn freeze_frame_ready(
+    state: tauri::State<'_, AppRecordingState>,
+    seq: u64,
+) -> Result<(), String> {
+    let mut acked = state.freeze_ack.lock().unwrap();
+    if seq > *acked {
+        *acked = seq;
+    }
+    state.freeze_ack_cv.notify_all();
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn cancel_freeze(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(overlay) = app.get_webview_window("overlay") {
-        let _ = overlay.hide();
-    }
+    hide_freeze_overlay(&app);
     Ok(())
 }
 
@@ -596,9 +665,7 @@ pub async fn confirm_freeze_capture(
     copy_to_clipboard: Option<bool>,
     custom_path: Option<String>,
 ) -> Result<CaptureResultDto, String> {
-    if let Some(overlay) = app.get_webview_window("overlay") {
-        let _ = overlay.hide();
-    }
+    hide_freeze_overlay(&app);
 
     let base_img = if std::path::Path::new("/tmp/vexrec_freeze.png").exists() {
         image::open("/tmp/vexrec_freeze.png")
@@ -726,9 +793,7 @@ pub async fn start_recording(
     *state.active_pipeline.lock().unwrap() = Some(pipeline);
 
     // Hide freeze overlay immediately upon recording start
-    if let Some(overlay) = app.get_webview_window("overlay") {
-        let _ = overlay.hide();
-    }
+    hide_freeze_overlay(&app);
 
     // Show Ubuntu-style squircle recording indicator in top bar
     let _ = show_recording_indicator(&app);
