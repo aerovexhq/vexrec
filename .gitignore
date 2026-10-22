@@ -5,3 +5,4 @@ Cargo.lock
 .env
 **/node_modules/
 **/dist/
+/dist-release/
