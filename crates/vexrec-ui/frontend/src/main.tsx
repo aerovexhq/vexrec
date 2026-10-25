@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { StrataThemeProvider } from "@aerovex/strata-ui";
 import App from "./App";
 import { FreezeOverlay } from "./components/overlay/FreezeOverlay";
 import { RecordingFrame } from "./components/frame/RecordingFrame";
@@ -49,6 +50,8 @@ const renderWindow = () => {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {renderWindow()}
+    <StrataThemeProvider theme="aerovex" preset="vexrec">
+      {renderWindow()}
+    </StrataThemeProvider>
   </React.StrictMode>
 );

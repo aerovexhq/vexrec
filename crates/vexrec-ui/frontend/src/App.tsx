@@ -1,8 +1,13 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { FloatingPill } from "./components/hud/FloatingPill";
 import { RecordingBar } from "./components/recording/RecordingBar";
 import { PreviewCard } from "./components/preview/PreviewCard";
 import { SettingsModal } from "./components/settings/SettingsModal";
+import {
+  ShortcutLegendModal,
+  useKeyboardShortcuts,
+  type ShortcutDefinition,
+} from "@aerovex/strata-ui";
 import { useAppStore } from "./store/useAppStore";
 
 export const App: React.FC = () => {
@@ -18,6 +23,8 @@ export const App: React.FC = () => {
     settingsOpen,
     setSettingsOpen,
   } = useAppStore();
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // Simulated recording timer & audio meter ticks when recording is active
   useEffect(() => {
@@ -42,7 +49,7 @@ export const App: React.FC = () => {
     };
   }, [recordingStatus, tickElapsed, setAudioLevels]);
 
-  const handleTriggerAction = () => {
+  const handleTriggerAction = useCallback(() => {
     if (mode === "capture") {
       // Simulate snapshot
       setLastCapture({
@@ -57,17 +64,17 @@ export const App: React.FC = () => {
       resetTimer();
       setRecordingStatus("recording");
     }
-  };
+  }, [mode, resetTimer, setRecordingStatus, setLastCapture]);
 
-  const handlePauseResume = () => {
+  const handlePauseResume = useCallback(() => {
     if (recordingStatus === "recording") {
       setRecordingStatus("paused");
     } else if (recordingStatus === "paused") {
       setRecordingStatus("recording");
     }
-  };
+  }, [recordingStatus, setRecordingStatus]);
 
-  const handleStopRecording = () => {
+  const handleStopRecording = useCallback(() => {
     setRecordingStatus("idle");
     setLastCapture({
       filePath: "/home/usr/Videos/Vexrec/Vexrec_Recording.mp4",
@@ -76,12 +83,64 @@ export const App: React.FC = () => {
       fileSizeBytes: 18400000,
       timestamp: new Date().toISOString(),
     });
-  };
+  }, [setRecordingStatus, setLastCapture]);
 
-  const handleDiscard = () => {
+  const handleDiscard = useCallback(() => {
     setRecordingStatus("idle");
     resetTimer();
-  };
+  }, [setRecordingStatus, resetTimer]);
+
+  const shortcutDefs = useMemo<ShortcutDefinition[]>(
+    () => [
+      {
+        id: "action.trigger",
+        category: "Capture",
+        description: "Trigger Snapshot or Start Recording",
+        defaultKey: "Space",
+        action: () => {
+          if (recordingStatus === "idle") {
+            handleTriggerAction();
+          } else {
+            handlePauseResume();
+          }
+        },
+      },
+      {
+        id: "action.stop",
+        category: "Capture",
+        description: "Stop and Save Active Recording",
+        defaultKey: "Esc",
+        action: () => {
+          if (recordingStatus !== "idle") {
+            handleStopRecording();
+          }
+        },
+      },
+      {
+        id: "action.settings",
+        category: "Preferences",
+        description: "Open Vexrec Preferences",
+        defaultKey: "Mod+,",
+        action: () => setSettingsOpen(true),
+      },
+      {
+        id: "action.shortcuts",
+        category: "Help",
+        description: "Show Keyboard Shortcuts Legend",
+        defaultKey: "?",
+        action: () => setShortcutsOpen((prev) => !prev),
+      },
+    ],
+    [
+      recordingStatus,
+      handleTriggerAction,
+      handlePauseResume,
+      handleStopRecording,
+      setSettingsOpen,
+    ]
+  );
+
+  useKeyboardShortcuts(shortcutDefs);
 
   return (
     <div className="w-screen h-screen flex flex-col items-center justify-end pb-8 p-4 bg-transparent select-none relative">
@@ -112,10 +171,18 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Settings Modal */}
+      {/* Dynamic Category Settings Modal */}
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      {/* Global Keyboard Shortcut Legend Modal */}
+      <ShortcutLegendModal
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+        definitions={shortcutDefs}
+        title="Vexrec Keyboard Shortcuts"
       />
     </div>
   );

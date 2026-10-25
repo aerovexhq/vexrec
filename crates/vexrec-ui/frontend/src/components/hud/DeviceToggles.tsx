@@ -15,22 +15,23 @@ export const DeviceToggles: React.FC = () => {
   } = useAppStore();
 
   return (
-    <div className="flex items-center gap-1 px-1 border-x border-surface-border">
+    <div className="flex items-center gap-0.5 px-1.5 border-x border-border/50">
       {/* Desktop Audio */}
       <button
+        type="button"
         onClick={toggleDesktopAudio}
         title={desktopAudioEnabled ? "System audio: Active" : "System audio: Muted"}
-        className={`relative p-2 rounded-lg tactile-btn ${
-          desktopAudioEnabled ? "text-neutral-200" : "text-neutral-500"
+        className={`relative p-2 rounded-md transition-colors cursor-pointer ${
+          desktopAudioEnabled ? "text-fg hover:bg-raised" : "text-muted hover:text-fg hover:bg-raised"
         }`}
       >
         {desktopAudioEnabled ? (
-          <Volume2 className="w-4 h-4" />
+          <Volume2 className="w-3.5 h-3.5" />
         ) : (
-          <VolumeX className="w-4 h-4 text-neutral-600" />
+          <VolumeX className="w-3.5 h-3.5 text-muted/60" />
         )}
         <span
-          className={`absolute bottom-1 right-1 w-1 h-1 rounded-full ${
+          className={`absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full ${
             desktopAudioEnabled ? "bg-emerald-500" : "bg-neutral-600"
           }`}
         />
@@ -38,19 +39,20 @@ export const DeviceToggles: React.FC = () => {
 
       {/* Microphone */}
       <button
+        type="button"
         onClick={toggleMic}
         title={micEnabled ? "Microphone: Live" : "Microphone: Muted"}
-        className={`relative p-2 rounded-lg tactile-btn ${
-          micEnabled ? "text-neutral-200" : "text-neutral-500"
+        className={`relative p-2 rounded-md transition-colors cursor-pointer ${
+          micEnabled ? "text-fg hover:bg-raised" : "text-muted hover:text-fg hover:bg-raised"
         }`}
       >
         {micEnabled ? (
-          <Mic className="w-4 h-4" />
+          <Mic className="w-3.5 h-3.5" />
         ) : (
-          <MicOff className="w-4 h-4 text-neutral-600" />
+          <MicOff className="w-3.5 h-3.5 text-muted/60" />
         )}
         <span
-          className={`absolute bottom-1 right-1 w-1 h-1 rounded-full ${
+          className={`absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full ${
             micEnabled ? "bg-emerald-500" : "bg-neutral-600"
           }`}
         />
@@ -58,15 +60,16 @@ export const DeviceToggles: React.FC = () => {
 
       {/* Webcam PiP */}
       <button
+        type="button"
         onClick={toggleCameraPip}
         title={cameraPipEnabled ? "Webcam overlay: Enabled" : "Webcam overlay: Disabled"}
-        className={`relative p-2 rounded-lg tactile-btn ${
-          cameraPipEnabled ? "text-neutral-200" : "text-neutral-500"
+        className={`relative p-2 rounded-md transition-colors cursor-pointer ${
+          cameraPipEnabled ? "text-fg hover:bg-raised" : "text-muted hover:text-fg hover:bg-raised"
         }`}
       >
-        <Webhook className="w-4 h-4" />
+        <Webhook className="w-3.5 h-3.5" />
         <span
-          className={`absolute bottom-1 right-1 w-1 h-1 rounded-full ${
+          className={`absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full ${
             cameraPipEnabled ? "bg-blue-500" : "bg-neutral-600"
           }`}
         />
@@ -74,15 +77,16 @@ export const DeviceToggles: React.FC = () => {
 
       {/* Mouse Cursor */}
       <button
+        type="button"
         onClick={toggleCursor}
         title={cursorVisible ? "Capture cursor: Yes" : "Capture cursor: Hidden"}
-        className={`relative p-2 rounded-lg tactile-btn ${
-          cursorVisible ? "text-neutral-200" : "text-neutral-500"
+        className={`relative p-2 rounded-md transition-colors cursor-pointer ${
+          cursorVisible ? "text-fg hover:bg-raised" : "text-muted hover:text-fg hover:bg-raised"
         }`}
       >
-        <MousePointer className="w-4 h-4" />
+        <MousePointer className="w-3.5 h-3.5" />
         <span
-          className={`absolute bottom-1 right-1 w-1 h-1 rounded-full ${
+          className={`absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full ${
             cursorVisible ? "bg-emerald-500" : "bg-neutral-600"
           }`}
         />

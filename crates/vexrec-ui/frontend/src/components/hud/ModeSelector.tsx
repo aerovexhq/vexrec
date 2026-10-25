@@ -6,13 +6,14 @@ export const ModeSelector: React.FC = () => {
   const { mode, setMode } = useAppStore();
 
   return (
-    <div className="flex items-center p-1 rounded-full bg-surface-base border border-surface-border">
+    <div className="flex items-center p-0.5 rounded-full bg-surface border border-border/50">
       <button
+        type="button"
         onClick={() => setMode("capture")}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
           mode === "capture"
-            ? "bg-neutral-100 text-neutral-900 shadow-sm"
-            : "text-neutral-400 hover:text-neutral-200 hover:bg-surface-hover"
+            ? "bg-fg text-bg shadow-sm font-semibold"
+            : "text-muted hover:text-fg"
         }`}
       >
         <Camera className="w-3.5 h-3.5" />
@@ -20,11 +21,12 @@ export const ModeSelector: React.FC = () => {
       </button>
 
       <button
+        type="button"
         onClick={() => setMode("record")}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
           mode === "record"
-            ? "bg-accent-record text-white shadow-sm"
-            : "text-neutral-400 hover:text-neutral-200 hover:bg-surface-hover"
+            ? "bg-accent-record text-white shadow-sm font-semibold"
+            : "text-muted hover:text-fg"
         }`}
       >
         <Video className="w-3.5 h-3.5" />
