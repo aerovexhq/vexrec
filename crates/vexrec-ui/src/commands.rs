@@ -1,6 +1,7 @@
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
+use std::time::Instant;
 use base64::Engine;
 use image::ImageEncoder;
 use vexrec_core::config::{ensure_unique_path, VexrecConfig};
@@ -51,6 +52,8 @@ pub struct AppRecordingState {
     /// Highest frame sequence acknowledged by the overlay webview.
     pub freeze_ack: Mutex<u64>,
     pub freeze_ack_cv: Condvar,
+    pub is_recording: AtomicBool,
+    pub recording_start: Mutex<Option<Instant>>,
 }
 
 impl Default for AppRecordingState {
@@ -61,6 +64,8 @@ impl Default for AppRecordingState {
             freeze_seq: AtomicU64::new(0),
             freeze_ack: Mutex::new(0),
             freeze_ack_cv: Condvar::new(),
+            is_recording: AtomicBool::new(false),
+            recording_start: Mutex::new(None),
         }
     }
 }
@@ -217,7 +222,8 @@ pub fn show_recording_tray(app: &tauri::AppHandle) -> Result<(), String> {
 
     tauri::tray::TrayIconBuilder::with_id("recording_tray")
         .icon(icon)
-        .tooltip("Recording in progress - Click to stop")
+        .title("00:00")
+        .tooltip("Recording: 00:00 - Click to stop")
         .menu(&menu)
         .on_menu_event(move |app, event| {
             let id = event.id().as_ref();
@@ -331,6 +337,8 @@ pub async fn discard_recording_internal(
     app: &tauri::AppHandle,
     state: &AppRecordingState,
 ) {
+    state.is_recording.store(false, Ordering::SeqCst);
+    *state.recording_start.lock().unwrap() = None;
     hide_recording_tray(app);
     hide_recording_frame(app);
     hide_recording_indicator(app);
@@ -344,6 +352,8 @@ pub async fn stop_recording_internal(
     app: &tauri::AppHandle,
     state: &AppRecordingState,
 ) -> Result<Option<CaptureResultDto>, String> {
+    state.is_recording.store(false, Ordering::SeqCst);
+    *state.recording_start.lock().unwrap() = None;
     hide_recording_tray(app);
     hide_recording_frame(app);
     hide_recording_indicator(app);
@@ -792,14 +802,49 @@ pub async fn start_recording(
     pipeline.start().map_err(|e| e.to_string())?;
     *state.active_pipeline.lock().unwrap() = Some(pipeline);
 
+    // Record start time & active status
+    state.is_recording.store(true, Ordering::SeqCst);
+    *state.recording_start.lock().unwrap() = Some(Instant::now());
+
     // Hide freeze overlay immediately upon recording start
     hide_freeze_overlay(&app);
 
-    // Show Ubuntu-style squircle recording indicator in top bar
-    let _ = show_recording_indicator(&app);
-
-    // Show top-right reddish circle tray icon when actively recording
+    // Show top-right reddish circle tray icon with initial duration
     let _ = show_recording_tray(&app);
+
+    // Spawn ticker to update tray duration every second from actual start time
+    let app_ticker = app.clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            let (is_active, start_instant) = {
+                if let Some(st) = app_ticker.try_state::<AppRecordingState>() {
+                    let active = st.is_recording.load(Ordering::SeqCst);
+                    let start = *st.recording_start.lock().unwrap();
+                    (active, start)
+                } else {
+                    (false, None)
+                }
+            };
+            if !is_active {
+                break;
+            }
+            if let Some(start) = start_instant {
+                let elapsed = start.elapsed().as_secs();
+                let time_str = if elapsed < 3600 {
+                    format!("{:02}:{:02}", elapsed / 60, elapsed % 60)
+                } else {
+                    format!("{:02}:{:02}:{:02}", elapsed / 3600, (elapsed % 3600) / 60, elapsed % 60)
+                };
+                if let Some(tray) = app_ticker.tray_by_id("recording_tray") {
+                    let _ = tray.set_title(Some(&time_str));
+                    let _ = tray.set_tooltip(Some(&format!("Recording: {} - Click to stop", time_str)));
+                } else {
+                    break;
+                }
+            }
+        }
+    });
 
     // Show optional non-interactable border frame around the recording area
     show_recording_frame(&app, crop)?;
