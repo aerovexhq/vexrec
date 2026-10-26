@@ -159,54 +159,6 @@ pub fn create_red_circle_icon() -> tauri::image::Image<'static> {
     tauri::image::Image::new_owned(rgba, SIZE, SIZE)
 }
 
-pub fn show_recording_indicator(app: &tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("recording_indicator") {
-        let monitor = win.current_monitor().ok().flatten();
-        let (screen_w, _) = monitor
-            .map(|m| (m.size().width, m.size().height))
-            .unwrap_or((1920, 1080));
-
-        let width = 100;
-        let height = 28;
-        // Position inside GNOME top bar: y=2 centers in 32px bar, x=screen_w - 320 positions beside status icons
-        let x = (screen_w as i32) - 320;
-        let y = 2;
-
-        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
-        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-            width,
-            height,
-        }));
-        let _ = win.set_always_on_top(true);
-
-        #[cfg(target_os = "linux")]
-        {
-            let win_for_gtk = win.clone();
-            run_on_gtk_main_thread(app, move || {
-                if let Ok(gtk_win) = win_for_gtk.gtk_window() {
-                    use gtk::prelude::*;
-                    gtk_win.realize();
-                    gtk_win.set_keep_above(true);
-                    gtk_win.set_type_hint(gdk::WindowTypeHint::Utility);
-                    gtk_win.set_skip_taskbar_hint(true);
-                    gtk_win.set_skip_pager_hint(true);
-                    gtk_win.set_accept_focus(false);
-                }
-            });
-        }
-
-        let _ = win.show();
-        let _ = app.emit("vexrec://recording-started", ());
-        let _ = app.emit("luxrec://recording-started", ());
-    }
-    Ok(())
-}
-
-pub fn hide_recording_indicator(app: &tauri::AppHandle) {
-    if let Some(win) = app.get_webview_window("recording_indicator") {
-        let _ = win.hide();
-    }
-}
 
 pub fn show_recording_tray(app: &tauri::AppHandle) -> Result<(), String> {
     let _ = app.remove_tray_by_id("recording_tray");
@@ -341,7 +293,6 @@ pub async fn discard_recording_internal(
     *state.recording_start.lock().unwrap() = None;
     hide_recording_tray(app);
     hide_recording_frame(app);
-    hide_recording_indicator(app);
     let pipeline_opt = state.active_pipeline.lock().unwrap().take();
     if let Some(pipeline) = pipeline_opt {
         let _ = pipeline.discard();
@@ -356,7 +307,6 @@ pub async fn stop_recording_internal(
     *state.recording_start.lock().unwrap() = None;
     hide_recording_tray(app);
     hide_recording_frame(app);
-    hide_recording_indicator(app);
 
     let pipeline_opt = state.active_pipeline.lock().unwrap().take();
     if let Some(pipeline) = pipeline_opt {

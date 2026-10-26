@@ -21,7 +21,7 @@ use tracing_subscriber::FmtSubscriber;
 #[command(about = "Modern, minimalistic screenshot and screen recorder for Linux written in Rust", long_about = None)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -88,8 +88,6 @@ enum Commands {
         #[arg(short, long)]
         output: PathBuf,
     },
-    /// Launch the interactive minimalist floating GUI
-    Gui,
     /// Run as a background daemon (starts hidden with system tray and global shortcuts)
     Daemon,
     /// Trigger the instant freeze-screen interactive capture overlay
@@ -141,7 +139,9 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let config = VexrecConfig::load().unwrap_or_default();
 
-    match cli.command {
+    let command = cli.command.unwrap_or(Commands::Freeze);
+
+    match command {
         Commands::Completions { shell, install } => {
             let mut cmd = Cli::command();
             if install {
@@ -376,11 +376,6 @@ async fn main() -> anyhow::Result<()> {
             println!("Annotated demo image successfully created at: {}", output.display());
         }
 
-        Commands::Gui => {
-            println!("Launching Vexrec Minimalist Desktop Interface...");
-            vexrec_ui::run_app();
-        }
-
         Commands::Daemon => {
             println!("Starting Vexrec in background daemon mode (hidden)...");
             vexrec_ui::run_daemon();
@@ -409,8 +404,8 @@ async fn main() -> anyhow::Result<()> {
                     if triggered {
                         println!("Triggered freeze overlay in restarted Vexrec daemon");
                     } else {
-                        println!("Daemon service unavailable, launching Vexrec GUI...");
-                        vexrec_ui::run_app();
+                        println!("Daemon service unavailable, starting Vexrec daemon in-process...");
+                        vexrec_ui::run_daemon();
                     }
                 }
             }

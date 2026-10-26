@@ -151,7 +151,7 @@ fn spawn_socket_server(app_handle: tauri::AppHandle) {
 }
 
 /// Runs the Tauri application in either standard GUI mode or background daemon mode
-pub fn run_app_mode(is_daemon: bool) {
+pub fn run_app_mode(_is_daemon: bool) {
     let app = tauri::Builder::default()
         .manage(AppRecordingState::default())
         .invoke_handler(tauri::generate_handler![
@@ -181,12 +181,6 @@ pub fn run_app_mode(is_daemon: bool) {
             let app_handle = app.handle().clone();
             spawn_socket_server(app_handle);
 
-            if !is_daemon {
-                if let Some(main_win) = app.get_webview_window("main") {
-                    let _ = main_win.show();
-                }
-            }
-
             #[cfg(target_os = "linux")]
             {
                 std::thread::spawn(|| {
@@ -213,18 +207,15 @@ pub fn run_app_mode(is_daemon: bool) {
         .expect("error while building vexrec tauri application");
 
     app.run(move |_app_handle, event| {
-        eprintln!("Tauri event: {event:?}");
-        if is_daemon {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                api.prevent_exit();
-            }
+        if let tauri::RunEvent::ExitRequested { api, .. } = event {
+            api.prevent_exit();
         }
     });
 }
 
 /// Runs the interactive GUI
 pub fn run_app() {
-    run_app_mode(false);
+    run_daemon();
 }
 
 /// Runs as background daemon (starts hidden with socket server, no tray icon until recording)

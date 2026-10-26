@@ -132,7 +132,7 @@ command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q "${
 echo ""
 echo "Installation completed successfully!"
 echo ""
-echo "Run 'vexrec gui' or find Vexrec in your application launcher."
+echo "Run 'vexrec freeze' or press PrintScreen to capture."
 if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
     echo "Note: Make sure ${BIN_DIR} is in your PATH. Add this to your ~/.bashrc:"
     echo "  export PATH=\"${BIN_DIR}:\$PATH\""

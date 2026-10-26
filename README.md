@@ -89,10 +89,10 @@ cargo build --release -p vexrec-cli
 
 ## Usage
 
-### Desktop Floating GUI
-Launch the floating interface from your application menu or via terminal:
+### Freeze Capture Overlay
+Launch the interactive freeze-screen capture overlay (or press `PrintScreen`):
 ```bash
-vexrec gui
+vexrec freeze
 ```
 
 ### Background Daemon
