@@ -80,24 +80,6 @@ pub fn expand_path(p: &std::path::Path) -> PathBuf {
     p.to_path_buf()
 }
 
-/// Runs `f` on the GTK main thread and waits (bounded) for it to complete.
-/// GTK and GObject are not thread-safe: touching `gtk::Window` from a tokio worker
-/// thread corrupts GObject state and crashes the process intermittently.
-#[cfg(target_os = "linux")]
-pub fn run_on_gtk_main_thread<F>(app: &tauri::AppHandle, f: F)
-where
-    F: FnOnce() + Send + 'static,
-{
-    let (tx, rx) = std::sync::mpsc::channel::<()>();
-    let dispatched = app.run_on_main_thread(move || {
-        f();
-        let _ = tx.send(());
-    });
-    if dispatched.is_ok() {
-        let _ = rx.recv_timeout(std::time::Duration::from_secs(2));
-    }
-}
-
 /// Sends a desktop notification whose default action (clicking the notification body)
 /// opens `path` with the system default application for its file type via `xdg-open`.
 /// The notification is handled on a detached thread so callers are never blocked.
@@ -255,25 +237,9 @@ pub fn show_recording_frame(
         }));
 
         let _ = frame_win.set_always_on_top(true);
-
-        #[cfg(target_os = "linux")]
-        {
-            let frame_for_gtk = frame_win.clone();
-            run_on_gtk_main_thread(app, move || {
-                if let Ok(gtk_win) = frame_for_gtk.gtk_window() {
-                    use gtk::prelude::*;
-                    gtk_win.realize();
-                    gtk_win.set_keep_above(true);
-                    gtk_win.set_accept_focus(false);
-                    gtk_win.set_skip_taskbar_hint(true);
-                    gtk_win.set_skip_pager_hint(true);
-                }
-            });
-        }
-
+        let _ = frame_win.set_skip_taskbar(true);
         let _ = frame_win.show();
         // Window passes all mouse clicks and gestures straight through (not interactable)
-        // Must be invoked after show()/realize() so the underlying GDK window is present
         let _ = frame_win.set_ignore_cursor_events(true);
     }
     Ok(())
@@ -387,23 +353,8 @@ pub fn trigger_freeze(
     }
 
     if let Some(overlay) = app.get_webview_window("overlay") {
-        #[cfg(target_os = "linux")]
-        {
-            let overlay_for_gtk = overlay.clone();
-            run_on_gtk_main_thread(app, move || {
-                if let Ok(gtk_win) = overlay_for_gtk.gtk_window() {
-                    use gtk::prelude::*;
-                    gtk_win.set_type_hint(gdk::WindowTypeHint::Utility);
-                    gtk_win.set_skip_taskbar_hint(true);
-                    gtk_win.set_skip_pager_hint(true);
-                    gtk_win.set_keep_above(true);
-                    gtk_win.set_accept_focus(true);
-                    gtk_win.show();
-                    gtk_win.present();
-                    gtk_win.grab_focus();
-                }
-            });
-        }
+        let _ = overlay.set_always_on_top(true);
+        let _ = overlay.set_skip_taskbar(true);
         overlay.show().map_err(|e| e.to_string())?;
         overlay.set_focus().map_err(|e| e.to_string())?;
     }

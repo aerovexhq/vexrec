@@ -20,8 +20,6 @@ serde_json.workspace = true
 chrono.workspace = true
 dirs.workspace = true
 base64 = "0.22"
-gtk = { version = "0.18", default-features = false }
-gdk = { version = "0.18", default-features = false }
 tauri.workspace = true
 
 [build-dependencies]

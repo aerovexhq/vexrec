@@ -181,24 +181,9 @@ pub fn run_app_mode(_is_daemon: bool) {
             let app_handle = app.handle().clone();
             spawn_socket_server(app_handle);
 
-            #[cfg(target_os = "linux")]
-            {
-                std::thread::spawn(|| {
-                    let _ = std::process::Command::new("gsettings")
-                        .args(["set", "org.gnome.shell.keybindings", "screenshot", "[]"])
-                        .status();
-                });
-
-                if let Some(overlay_win) = app.get_webview_window("overlay") {
-                    if let Ok(gtk_win) = overlay_win.gtk_window() {
-                        use gtk::prelude::*;
-                        gtk_win.set_type_hint(gdk::WindowTypeHint::Utility);
-                        gtk_win.set_skip_taskbar_hint(true);
-                        gtk_win.set_skip_pager_hint(true);
-                        gtk_win.set_keep_above(true);
-                        gtk_win.set_accept_focus(true);
-                    }
-                }
+            if let Some(overlay_win) = app.get_webview_window("overlay") {
+                let _ = overlay_win.set_always_on_top(true);
+                let _ = overlay_win.set_skip_taskbar(true);
             }
 
             Ok(())
