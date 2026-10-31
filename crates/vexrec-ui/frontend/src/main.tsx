@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { StrataThemeProvider } from "@aerovex/strata-ui";
 import { FreezeOverlay } from "./components/overlay/FreezeOverlay";
 import { RecordingFrame } from "./components/frame/RecordingFrame";
+import { RecordingIndicator } from "./components/indicator/RecordingIndicator";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import "./index.css";
 
@@ -24,6 +25,9 @@ try {
 const renderWindow = () => {
   if (windowLabel === "recording_frame") {
     return <RecordingFrame />;
+  }
+  if (windowLabel === "recording_indicator") {
+    return <RecordingIndicator />;
   }
   if (windowLabel === "settings") {
     return (

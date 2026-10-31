@@ -11,7 +11,7 @@ use vexrec_pipeline::encoders::EncoderConfig;
 use vexrec_pipeline::recorder::RecordingPipeline;
 use vexrec_pipeline::snapshot::SnapshotEngine;
 use vexrec_pipeline::x11_capture::X11CaptureEngine;
-use vexrec_portal::PortalClient;
+use vexrec_portal::{PortalClient, SourceType};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager};
 
@@ -80,7 +80,7 @@ pub fn expand_path(p: &std::path::Path) -> PathBuf {
     p.to_path_buf()
 }
 
-/// Sends a desktop notification whose default action (clicking the notification body)
+/// Sends a desktop notification whose default action (clicking the notification body or button)
 /// opens `path` with the system default application for its file type via `xdg-open`.
 /// The notification is handled on a detached thread so callers are never blocked.
 pub fn notify_with_open_action(icon: &str, title: &str, body: &str, path: &std::path::Path) {
@@ -94,7 +94,9 @@ pub fn notify_with_open_action(icon: &str, title: &str, body: &str, path: &std::
             .args([
                 "-a", "Vexrec",
                 "-i", icon.as_str(),
-                "-A", "default=Open",
+                "-A", "default=Open Video",
+                "-A", "open=Open Video",
+                "-t", "10000",
                 "--wait",
                 title.as_str(),
                 body.as_str(),
@@ -104,7 +106,8 @@ pub fn notify_with_open_action(icon: &str, title: &str, body: &str, path: &std::
             .output();
 
         if let Ok(out) = output {
-            if String::from_utf8_lossy(&out.stdout).trim() == "default" {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_lowercase();
+            if !s.is_empty() && (s == "default" || s == "open" || s == "0" || s == "1") {
                 let _ = std::process::Command::new("xdg-open")
                     .arg(&path)
                     .stdin(std::process::Stdio::null())
@@ -141,11 +144,51 @@ pub fn create_red_circle_icon() -> tauri::image::Image<'static> {
     tauri::image::Image::new_owned(rgba, SIZE, SIZE)
 }
 
+pub fn show_recording_indicator(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("recording_indicator") {
+        let monitor = win.current_monitor().ok().flatten();
+        let (screen_w, _) = monitor
+            .map(|m| (m.size().width, m.size().height))
+            .unwrap_or((1920, 1080));
+
+        let width = 100;
+        let height = 28;
+        // Position at top-right corner of screen: x = screen_w - 120, y = 38 (just below GNOME top bar)
+        let x = (screen_w as i32) - 120;
+        let y = 38;
+
+        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+            width,
+            height,
+        }));
+        let _ = win.set_always_on_top(true);
+        let _ = win.set_skip_taskbar(true);
+        let _ = win.show();
+        let _ = app.emit("vexrec://recording-started", ());
+        let _ = app.emit("luxrec://recording-started", ());
+    }
+    Ok(())
+}
+
+pub fn hide_recording_indicator(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("recording_indicator") {
+        let _ = win.hide();
+    }
+}
 
 pub fn show_recording_tray(app: &tauri::AppHandle) -> Result<(), String> {
-    let _ = app.remove_tray_by_id("recording_tray");
     let icon = create_red_circle_icon();
     let app_handle = app.clone();
+
+    // If tray already exists on this app handle, simply make it visible and update title/icon
+    if let Some(tray) = app.tray_by_id("recording_tray") {
+        let _ = tray.set_icon(Some(icon));
+        let _ = tray.set_visible(true);
+        let _ = tray.set_title(Some("00:00"));
+        let _ = tray.set_tooltip(Some("Recording: 00:00 - Click to stop"));
+        return Ok(());
+    }
 
     let stop_item = tauri::menu::MenuItem::with_id(app, "stop", "Stop Recording", true, None::<&str>)
         .map_err(|e| e.to_string())?;
@@ -159,6 +202,7 @@ pub fn show_recording_tray(app: &tauri::AppHandle) -> Result<(), String> {
         .title("00:00")
         .tooltip("Recording: 00:00 - Click to stop")
         .menu(&menu)
+        .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             let id = event.id().as_ref();
             if id == "stop" {
@@ -194,7 +238,9 @@ pub fn show_recording_tray(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 pub fn hide_recording_tray(app: &tauri::AppHandle) {
-    let _ = app.remove_tray_by_id("recording_tray");
+    if let Some(tray) = app.tray_by_id("recording_tray") {
+        let _ = tray.set_visible(false);
+    }
 }
 
 pub fn show_recording_frame(
@@ -258,6 +304,7 @@ pub async fn discard_recording_internal(
     state.is_recording.store(false, Ordering::SeqCst);
     *state.recording_start.lock().unwrap() = None;
     hide_recording_tray(app);
+    hide_recording_indicator(app);
     hide_recording_frame(app);
     let pipeline_opt = state.active_pipeline.lock().unwrap().take();
     if let Some(pipeline) = pipeline_opt {
@@ -272,6 +319,7 @@ pub async fn stop_recording_internal(
     state.is_recording.store(false, Ordering::SeqCst);
     *state.recording_start.lock().unwrap() = None;
     hide_recording_tray(app);
+    hide_recording_indicator(app);
     hide_recording_frame(app);
 
     let pipeline_opt = state.active_pipeline.lock().unwrap().take();
@@ -309,6 +357,10 @@ pub fn trigger_freeze(
     app: &tauri::AppHandle,
     state: &AppRecordingState,
 ) -> Result<(), String> {
+    // Ensure any existing freeze overlay is synchronously unmapped first
+    hide_freeze_overlay(app);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
     let img = X11CaptureEngine::capture_screen(None).map_err(|e| e.to_string())?;
     let (width, height) = img.dimensions();
 
@@ -393,6 +445,11 @@ pub fn trigger_freeze(
 pub fn hide_freeze_overlay(app: &tauri::AppHandle) {
     if let Some(overlay) = app.get_webview_window("overlay") {
         let _ = overlay.hide();
+    }
+    if X11CaptureEngine::is_available() {
+        if let Ok(Some(win)) = X11CaptureEngine::find_overlay_window(std::process::id(), 500, 500) {
+            let _ = X11CaptureEngine::unmap_window(win);
+        }
     }
     if let Some(state) = app.try_state::<AppRecordingState>() {
         *state.freeze_data.lock().unwrap() = None;
@@ -679,12 +736,22 @@ pub async fn start_recording(
     let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
     let out_path = ensure_unique_path(out_dir.join(format!("Vexrec_{}.{}", now, config.recording.container.extension())));
 
+    // Synchronously unmap and hide freeze overlay before starting pipeline
+    hide_freeze_overlay(&app);
+    // Allow window manager / compositor a brief moment to repaint the live underlying desktop
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+
     let pipeline = if X11CaptureEngine::is_available() {
         RecordingPipeline::new_x11(crop, out_path, &config).map_err(|e| e.to_string())?
     } else {
         let portal = PortalClient::new();
+        let source_type = if _target.as_deref() == Some("window") {
+            SourceType::Window
+        } else {
+            SourceType::Monitor
+        };
         let streams = portal
-            .request_screencast(config.recording.show_cursor)
+            .request_screencast_with_type(config.recording.show_cursor, source_type)
             .await
             .map_err(|e| e.to_string())?;
         let primary_stream = streams
@@ -707,8 +774,8 @@ pub async fn start_recording(
     state.is_recording.store(true, Ordering::SeqCst);
     *state.recording_start.lock().unwrap() = Some(Instant::now());
 
-    // Hide freeze overlay immediately upon recording start
-    hide_freeze_overlay(&app);
+    // Show top-right recording indicator window with live timer
+    let _ = show_recording_indicator(&app);
 
     // Show top-right reddish circle tray icon with initial duration
     let _ = show_recording_tray(&app);

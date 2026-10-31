@@ -1,4 +1,4 @@
-use ashpd::desktop::screencast::{CursorMode, Screencast, SourceType};
+use ashpd::desktop::screencast::{CursorMode, Screencast};
 use ashpd::desktop::screenshot::Screenshot;
 use ashpd::desktop::PersistMode;
 use ashpd::url::Url;
@@ -6,6 +6,9 @@ use ashpd::WindowIdentifier;
 use vexrec_core::error::{VexrecError, Result};
 use std::os::fd::OwnedFd;
 use tracing::info;
+
+pub use ashpd::desktop::screencast::SourceType;
+pub use ashpd::enumflags2::BitFlags;
 
 pub struct PortalCaptureStream {
     pub pipewire_fd: OwnedFd,
@@ -27,7 +30,17 @@ impl PortalClient {
         &self,
         include_cursor: bool,
     ) -> Result<Vec<PortalCaptureStream>> {
-        info!("Requesting ScreenCast session via XDG Desktop Portal");
+        self.request_screencast_with_type(include_cursor, SourceType::Monitor | SourceType::Window).await
+    }
+
+    /// Requests a screencast session via XDG Desktop Portal ScreenCast with explicit SourceType.
+    pub async fn request_screencast_with_type(
+        &self,
+        include_cursor: bool,
+        source_type: impl Into<BitFlags<SourceType>>,
+    ) -> Result<Vec<PortalCaptureStream>> {
+        let sources: BitFlags<SourceType> = source_type.into();
+        info!(?sources, "Requesting ScreenCast session via XDG Desktop Portal");
         let proxy = Screencast::new()
             .await
             .map_err(|e| VexrecError::Portal(format!("Failed to connect to ScreenCast portal: {e}")))?;
@@ -47,7 +60,7 @@ impl PortalClient {
             .select_sources(
                 &session,
                 cursor_mode,
-                SourceType::Monitor | SourceType::Window,
+                sources,
                 true,
                 None,
                 PersistMode::DoNot,

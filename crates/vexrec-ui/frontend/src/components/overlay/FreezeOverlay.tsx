@@ -247,6 +247,8 @@ export const FreezeOverlay: React.FC = () => {
     setIsSubmitting(true);
     try {
       const actualCrop = getActualCropRect();
+      setData(null);
+      setCrop(null);
       await invoke("start_recording", {
         target: targetMode === "fullscreen" ? "fullscreen" : "area",
         crop: actualCrop,
@@ -255,7 +257,6 @@ export const FreezeOverlay: React.FC = () => {
         mic: micEnabled,
         desktopAudio: desktopAudioEnabled,
       });
-      // Close freeze overlay immediately
       await invoke("cancel_freeze");
     } catch (err) {
       console.error("Failed to start recording:", err);

@@ -262,6 +262,15 @@ impl X11CaptureEngine {
         Ok(None)
     }
 
+    /// Unmaps the window synchronously from the X server
+    pub fn unmap_window(window: u32) -> Result<()> {
+        let (conn, _) = x11rb::connect(None)
+            .map_err(|e| VexrecError::Pipeline(format!("Failed to connect to X11 display: {e}")))?;
+        let _ = conn.unmap_window(window);
+        conn.flush().map_err(|e| VexrecError::Pipeline(e.to_string()))?;
+        Ok(())
+    }
+
     /// Polls until the window reports `Viewable`, or the timeout elapses.
     /// Window managers ignore _NET_ACTIVE_WINDOW and focus requests on unmapped windows.
     pub fn wait_until_viewable(window: u32, timeout: std::time::Duration) -> bool {

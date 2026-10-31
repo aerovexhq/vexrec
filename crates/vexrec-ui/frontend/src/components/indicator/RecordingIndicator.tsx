@@ -4,26 +4,41 @@ import { listen } from "@tauri-apps/api/event";
 
 export const RecordingIndicator: React.FC = () => {
   const [seconds, setSeconds] = useState(0);
+  const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
-    setSeconds(0);
-    const interval = setInterval(() => {
-      setSeconds((prev) => prev + 1);
-    }, 1000);
-
-    const unlistenVexrec = listen("vexrec://recording-started", () => {
+    const unlistenStartedVex = listen("vexrec://recording-started", () => {
+      setSeconds(0);
+      setIsActive(true);
+    });
+    const unlistenStartedLux = listen("luxrec://recording-started", () => {
+      setSeconds(0);
+      setIsActive(true);
+    });
+    const unlistenStoppedVex = listen("vexrec://recording-stopped", () => {
+      setIsActive(false);
       setSeconds(0);
     });
-    const unlistenLuxrec = listen("luxrec://recording-started", () => {
+    const unlistenStoppedLux = listen("luxrec://recording-stopped", () => {
+      setIsActive(false);
       setSeconds(0);
     });
 
     return () => {
-      clearInterval(interval);
-      unlistenVexrec.then((unlisten) => unlisten());
-      unlistenLuxrec.then((unlisten) => unlisten());
+      unlistenStartedVex.then((fn) => fn());
+      unlistenStartedLux.then((fn) => fn());
+      unlistenStoppedVex.then((fn) => fn());
+      unlistenStoppedLux.then((fn) => fn());
     };
   }, []);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isActive]);
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
